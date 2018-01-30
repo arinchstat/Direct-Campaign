@@ -1,0 +1,173 @@
+# Set working directory
+setwd("D:/Analytics Engine")
+
+# Install packages if not already installed
+packages_required <- c("shiny", "shinydashboard", "plotly")
+if (length(setdiff(packages_required, rownames(installed.packages()))) > 0) {
+  install.packages(paste(setdiff(packages_required, 
+                                 rownames(installed.packages())),sep=""))
+}
+
+# Load Packages
+library(plotly)
+library(shiny)
+library(shinydashboard)
+
+# xxxxxxxxxxxxxxxxxxx Data Import and Preprocessing xxxxxxxxxxxxxxxxxxx #
+
+# Import Data
+plotData1=read.csv('./Data for Plotly Charts/Plotdata1.csv')
+plotData2=read.csv('./Data for Plotly Charts/Plotdata2.csv')
+RFTSegmentation=read.csv('./Data for Plotly Charts/RFT_Segmentation.csv')
+
+# Reorder factor levels according to order of appearance
+plotData1$CompNumber=factor(plotData1$CompNumber,levels=plotData1$CompNumber)
+plotData2$CompNumber=factor(plotData2$CompNumber,levels=plotData2$CompNumber)
+
+# Convert percentage to numeric
+percToNumeric <- function(columnName){
+  return(as.numeric(substr(as.character(columnName),1,nchar(as.character(columnName))-1))/100)
+}
+
+plotData2[,7:11]=apply(plotData2[,7:11],2,percToNumeric)
+RFTSegmentation$Cum_Res_rate_numeric=percToNumeric(RFTSegmentation$Cum_Res_rate)
+
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx UI xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx #
+
+ui <- dashboardPage(
+  skin='black',
+  dashboardHeader(
+    title="Competition Response Analytics",
+    titleWidth=350),
+  dashboardSidebar(disable = TRUE),
+  dashboardBody(
+      fluidRow(
+        box(title="Response Rate by Comps", status="success",
+          solidHeader = TRUE, collapsible = TRUE,width=12,
+          plotlyOutput("resRateByComps",height="350px")
+          ),
+        box(title="Revenue by Comps", status="success",
+          solidHeader = TRUE, collapsible = TRUE,width=12,
+          plotlyOutput("revenueByComps",height="350px")
+          ),
+        box(title="ARPU by Comps", status="success",
+          solidHeader = TRUE, collapsible = TRUE,width=12,
+          plotlyOutput("arpuByComps",height="350px")
+          ),
+        box(title="Targeted and Response by Comps", status="success",
+          solidHeader = TRUE, collapsible = TRUE,width=12,
+          plotlyOutput("tAndrByComps",height="350px")
+          ),
+        column(
+          width=9,
+          box(title="Multiple Entries", status="success",
+              solidHeader = TRUE, collapsible = TRUE,width="100%",
+              plotlyOutput("multipleEntriesByComps",height="350px")
+          )
+        ),
+        column(
+          width=3,
+          box(title="Insights", status="success",
+              solidHeader = TRUE, collapsible = TRUE,width='100%',
+              textOutput("insights")
+          )
+        ),
+        box(title="Performance of RFT Segments", status="success",
+          solidHeader = TRUE, collapsible = TRUE,width=12,
+          selectInput(
+            inputId = "selectComp",
+            label="Select Comp Number",
+            choices=unique(RFTSegmentation$CompNumber),
+            multiple=FALSE),
+          plotlyOutput("perfRFTSegments",height="350px")
+        )
+      )
+  )
+)
+
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx Server xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx #
+
+server <- function(input, output) {
+  output$resRateByComps <- renderPlotly({
+    plot_ly(data=plotData1,x=~CompNumber,y=~Response_rate,type='bar') %>%
+    layout(title='Response Rate by Comps',
+           xaxis=list(title="Comp Number"),
+           yaxis=list(title="Response Rate"))
+    })
+  
+  output$revenueByComps <- renderPlotly({
+    plot_ly(data=plotData1,x=~CompNumber,y=~Revenue,type='bar') %>%
+      layout(title='Revenue by Comps',
+             xaxis=list(title="Comp Number"),
+             yaxis=list(title="Revenue in $"))
+  })
+  
+  output$arpuByComps <- renderPlotly({
+    plot_ly(data=plotData1,x=~CompNumber,y=~ARPU,type='bar') %>%
+      layout(title='ARPU by Comps',
+             xaxis=list(title="Comp Number"),
+             yaxis=list(title="ARPU"))
+  })
+
+  output$tAndrByComps <- renderPlotly({
+    plot_ly() %>%
+      add_trace(data=plotData1,x=~CompNumber,y=~Targeted,
+                type='scatter',mode='lines',name='Targeted',fill='tonexty') %>%
+      add_trace(data=plotData1,x=~CompNumber,y=~Response,
+                type='scatter',mode='lines',name='Response',fill='tonexty') %>%
+      add_trace(data=plotData1,x=~CompNumber,y=~Response_rate,
+                type='scatter',mode='lines',name='Response Rate',yaxis='y2') %>%
+      layout(title='Targeted and Response by Comps', hovermode='closest',
+             xaxis=list(title="Comp Number"),
+             yaxis=list(title="Targeted, Response",domain=c(0,0.45)),
+             yaxis2=list(title="Response Rate",domain=c(0.55,1),
+                         side='left'))
+  })
+  
+  output$multipleEntriesByComps <- renderPlotly({
+    plot_ly() %>%
+      add_trace(data=plotData2,x=~CompNumber,y=~X.G1,
+                type='bar',name='G1') %>%
+      add_trace(data=plotData2,x=~CompNumber,y=~X.G2,
+                type='bar',name='G2') %>%
+      add_trace(data=plotData2,x=~CompNumber,y=~X.G3,
+                type='bar',name='G3') %>%
+      add_trace(data=plotData2,x=~CompNumber,y=~X.G4,
+                type='bar',name='G4') %>%
+      add_trace(data=plotData2,x=~CompNumber,y=~X.G5,
+                type='bar',name='G5') %>%
+      layout(title='Multiple Entries by Comps', barmode='stack',
+             hovermode='closest',
+             xaxis=list(title="Comp Number"),
+             yaxis=list(title="Proportion of Respondents"))
+  })
+  
+  output$insights <- renderText({
+    "Most of the respondents enter once but there is considerable number of respondents who make two entries"
+  })
+  
+  # Reactive filtered dataset according to the selection in 'Select Comp'
+  RFTSegmentation_filtered=reactive({
+    subset(RFTSegmentation,CompNumber==input$selectComp)
+  })
+  
+  output$perfRFTSegments <- renderPlotly({
+    plot_ly() %>%
+      add_trace(data=RFTSegmentation_filtered(),x=~RFT.Score,y=~Cum_Targeted,
+                text=~Cum_Targeted,type='scatter',mode='lines',name='Cum Targeted') %>%
+      add_trace(data=RFTSegmentation_filtered(),x=~RFT.Score,y=~Cum_Non.Respondent,
+                text=~Cum_Non.Respondent,type='scatter',mode='lines',name='Cum Non-Respondent') %>%
+      add_trace(data=RFTSegmentation_filtered(),x=~RFT.Score,y=~Cum.respondent,
+                text=~Cum.respondent,type='scatter',mode='lines',name='Cum Respondent') %>%
+      add_trace(data=RFTSegmentation_filtered(),x=~RFT.Score,y=~Cum_Res_rate_numeric*100,
+                text=~Cum_Res_rate,type='scatter',mode='lines',name='Cum Response Rate',yaxis='y2') %>%
+      layout(title='Performance of RFT Segments',hovermode='closest',
+             xaxis=list(title="RFT Score"),
+             yaxis=list(title="Number of participants in '000"),
+             yaxis2=list(title="Cumulative Response Rate %",overlaying='y',side='right'))
+  })
+}
+
+# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx App xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx #
+
+shinyApp(ui, server)
