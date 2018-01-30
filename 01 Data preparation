@@ -1,0 +1,90 @@
+## Reading inbound files and seperating them into two distinct types of competitions
+
+library(lubridate)## For converting character to date format
+library(data.tables)
+setwd("C:/Users/Arindam/Desktop/AC_0351_Campaigns/Inbound")
+
+## Read all the files automatically from the specified location (multiple files but with same headers)
+file_list <- list.files()
+for (file in file_list){
+
+Newdata<- read.csv(file, header = T, sep =",")
+Newdata$PhoneNo<- paste(Newdata$W1, Newdata$W2, Newdata$W3, Newdata$W4, Newdata$W5, Newdata$W6, Newdata$W7, Newdata$W8, Newdata$W9, Newdata$W10, Newdata$W11, Newdata$W12, sep = "-", collapse = NULL)
+Newdata<- Newdata[,c(3,4,24)]
+Newdata<- data.table(Newdata)
+#Allocating the CompNumber
+
+Newdata$CompNumber <-ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-02-27 14:00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-03-02 09:00:00") & 
+                              (Newdata$To == 63323), "Comp_Grp2_1",
+                            ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-03-27 14:00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-03-30 09:00:00") & 
+                                     (Newdata$To == 63323), "Comp_Grp2_2",
+                                   ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-05-01 14:00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-05-04 09:00:00") & 
+                                            (Newdata$To == 65554), "Comp_Grp2_3",
+                                          ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-05-01 14:00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-05-04 09:00:00") & 
+                                                   (Newdata$To == 63323), "Comp_Grp2_4", 
+                                                 ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-05-21 17:00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-06-01 17:00:00") & 
+                                                          (Newdata$To == 65554), "Comp_Grp2_5",
+                                                        ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-06-26 14:00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-07-06 17:00:00") & 
+                                                                 (Newdata$To == 65554), "Comp_Grp2_6",
+                                                               ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-07-30 14:00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-08-10 17:00:00") & 
+                                                                        (Newdata$To == 65554), "Comp_Grp2_7",
+                                                                      
+                                                                      ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-10-01 14:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-10-12 17:00") & 
+                                                                               (Newdata$To == 65554), "Comp_Grp2_8",
+                                                                             
+                                                                             ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-11-19 14:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-11-30 17:00") & 
+                                                                                      (Newdata$To == 65554), "Comp_Grp2_9",
+                                                                                    
+                                                                                    ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2015-12-10 14:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2015-12-21 17:00") & 
+                                                                                             (Newdata$To == 65554), "Comp_Grp2_10",
+                                                                                           
+                                                                                           ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2016-01-14 14:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2016-01-25 17:00") & 
+                                                                                                    (Newdata$To == 65554), "Comp_Grp2_11",
+                                                                                                  
+                                                                                                  ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2016-02-11 14:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2016-02-22 17:00") & 
+                                                                                                           (Newdata$To == 65554), "Comp_Grp2_12",
+                                                                                                         
+                                                                                                         ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2016-03-30 14:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2016-04-11 17:00") & 
+                                                                                                                  (Newdata$To == 65554), "Comp_Grp2_13",
+                                                                                                                
+                                                                                                                ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2016-04-28 00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2016-05-09 17:00") & 
+                                                                                                                         (Newdata$To == 65554), "Comp_Grp2_14",
+                                                                                                                       
+                                                                                                                       ifelse(as.POSIXct(Newdata$Date) >= as.POSIXct("2016-05-26 00:00") & as.POSIXct(Newdata$Date) <= as.POSIXct("2016-07-11 17:00") & 
+                                                                                                                                (Newdata$To == 80060), "Comp_Grp2_15","Comp_Grp0")))))))))))))))
+
+#Subsetting data - removing data with "Comp_Grp0"
+NTXData <- Newdata[CompNumber != "Comp_Grp2_0",]
+remove(Newdata)
+
+#Writing the processed file to the system
+file2<- gsub("Final ", "NTX ", file)
+setwd("C:/Users/Arindam/Desktop/AC_0351_Campaigns/Processed Inbound")
+write.csv(NTXData, file2, row.names = FALSE)
+
+}
+
+## Creating the consolidated inbound file
+
+setwd("C:/Users/Arindam/Desktop/AC_0351_Campaigns/Processed Inbound")
+file_list <- list.files()
+for (file in file_list){
+  
+  # if the merged dataset doesn't exist, create it
+  if (!exists("Inbound")){
+    Inbound <- read.csv(file, header = T, stringsAsFactors = F )
+    }
+  
+  # if the merged dataset does exist, append to it
+  if (exists("dataset")){
+    temp_dataset <- read.csv(file, header = T, stringsAsFactors = F )
+    Inbound<-rbind(Inbound, temp_dataset)
+    rm(temp_dataset)
+  }
+  
+  
+}
+Inbound$Key<- paste(Inbound$PhoneNo, Inbound$CompNumber, sep="/", collapse = NULL)
+
+## Writing the processed files back to the specified folder
+write.csv(Inbound, file= "C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/Pooled_Inbound.csv", row.names = F)
