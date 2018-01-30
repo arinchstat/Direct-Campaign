@@ -1,0 +1,160 @@
+## This module scores the candidates in the marketing push list, ranks them in descending order based on their likelihood to respond to a competition
+## We use the latest RFT Score for all the available phone numbers
+## Filter the common phone numbers that appears in RFT Score list and in the marketing push list
+## Feed the common list of phone numbers (which now contains the customer attributes and the competition attributes) into the appropriate LR models and obtain their predicted probability to respond
+
+##Reading the RFT Scores
+RFT_All_Comps <- read.csv("C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/RFT_Scores.csv", header = T, sep = ",", stringsAsFactors = F)
+
+##Reading the fresh marketing push files
+setwd("C:/Users/Arindam/Desktop/AC_0351_Campaigns/Scoring Set")
+file_list <- list.files()
+
+Pushes_Scoring <- data.frame(PhoneNo=character(),
+                             CompNumber=character(), 
+                           stringsAsFactors=FALSE)
+
+for (file in file_list){
+
+  Newdata<- read.csv(file, header = T, sep =",")
+  Newdata$PhoneNo<- paste(Newdata$W1, Newdata$W2, Newdata$W3, Newdata$W4, Newdata$W5, Newdata$W6, Newdata$W7, Newdata$W8, Newdata$W9, Newdata$W10, Newdata$W11, Newdata$W12, sep = "-", collapse = NULL)
+  Newdata<- Newdata[,c(14)]
+  NumComp <- readline(prompt="Enter Comp Number: ")
+  Newdata$CompNumber<- gsub(" ","",paste("Non-TX",NumComp)) 
+  Pushes_Scoring<- rbind(Pushes_Scoring, Newdata)
+  }
+
+ rm(Newdata) 
+  
+Unique_Targets<- as.data.frame(unique(Pushes_Scoring$PhoneNo))
+Unique_Cus_RFT<- as.data.frame(unique(RFT_All_Comps$PhoneNo))
+Pushes_Scoring_Valid<- merge(Unique_Cus_RFT, Pushes_Scoring, by.x = "unique(RFT_All_Comps$PhoneNo)", by.y = "PhoneNo", all.x = T, all.y = F)
+##rm(Pushes_Scoring, Unique_Cus_RFT, Unique_Targets)
+
+##Merging the PushesTd with the RFT file
+RFT_All_Comps$Key<- paste(RFT_All_Comps$PhoneNo, RFT_All_Comps$CompNumber, sep = "/", collapse = NULL)
+Pushes_Scoring_Valid$Key<- paste(Pushes_Scoring_Valid$`unique(RFT_All_Comps$PhoneNo)`, Pushes_Scoring_Valid$CompNumber, sep="/", collapse = NULL)
+
+RFT_All_Comps<- merge(RFT_All_Comps, Pushes_Scoring_Valid, by.x = "Key", by.y = "Key", all.x = F, all.y = T)
+RFT_All_Comps<- subset(RFT_All_Comps, RFT_All_Comps$RFT_Score>0)
+
+##Reading inbound files to compute average number of entries
+setwd("C:/Users/Arindam/Desktop/ITV Jan Data refresh/Inbound Data/Inbound Only/")
+
+## dataset is the name of the file that will contain all entries made by a phone number till date
+file_list <- list.files()
+
+for (file in file_list){
+  
+  # if the merged dataset doesn't exist, create it
+  if (!exists("dataset")){
+    dataset <- read.csv(file, header = T, stringsAsFactors = F )
+    dataset<- subset(dataset,  sum(dataset$W1, dataset$W2, dataset$W3, dataset$W4, dataset$W5, dataset$W6, dataset$W7, dataset$W8, dataset$W9, dataset$W10, dataset$W11, dataset$W12, na.rm = T)>0)
+    dataset$PhoneNo<- paste(dataset$W1, dataset$W2, dataset$W3, dataset$W4, dataset$W5, dataset$W6, dataset$W7, dataset$W8, dataset$W9, dataset$W10, dataset$W11, dataset$W12, sep = "-", collapse = NULL)
+    dataset1<- as.data.frame(dataset$PhoneNo)
+    dataset<- dataset1
+    rm(dataset1)
+    names(dataset)[names(dataset)=="dataset$PhoneNo"] <- "PhoneNo"
+  }
+  
+  # if the merged dataset does exist, append to it
+  if (exists("dataset")){
+    temp_dataset <- read.csv(file, header = T, stringsAsFactors = F )
+    temp_dataset<- subset(temp_dataset, sum(temp_dataset$W1, temp_dataset$W2, temp_dataset$W3, temp_dataset$W4, temp_dataset$W5, temp_dataset$W6, temp_dataset$W7, temp_dataset$W8, temp_dataset$W9, temp_dataset$W10, temp_dataset$W11, temp_dataset$W12, na.rm = T)>0)
+    temp_dataset$PhoneNo<- paste(temp_dataset$W1, temp_dataset$W2, temp_dataset$W3, temp_dataset$W4, temp_dataset$W5, temp_dataset$W6, temp_dataset$W7, temp_dataset$W8, temp_dataset$W9, temp_dataset$W10, temp_dataset$W11, temp_dataset$W12, sep = "-", collapse = NULL)
+    temp_dataset1<- as.data.frame(temp_dataset$PhoneNo)
+    temp_dataset<-temp_dataset1
+    names(temp_dataset)[names(temp_dataset)=="temp_dataset$PhoneNo"] <- "PhoneNo"
+    dataset<-rbind(dataset, temp_dataset)
+    rm(temp_dataset,temp_dataset1)
+  }
+  
+  
+}
+
+## Computing Broadcast entries till date (all entries made till date - entries to Non-TX entries)
+
+require(sqldf)
+
+setwd("C:\\Users\\Arindam\\Desktop\\ITV Jan Data refresh\\Processed data")
+Entries <- sqldf("select PhoneNo, count(PhoneNo) as Entries from dataset group by PhoneNo")
+write.csv(Entries, file="C:\\Users\\Arindam\\Desktop\\ITV Jan Data refresh\\Processed data\\NoOfEntriesBoth.csv", row.names = F)
+
+####### Subtracting Non-Tx Entries from All entries
+
+setwd("C:\\Users\\Arindam\\Desktop\\ITV Jan Data refresh\\Processed data\\Inbound")
+
+file_list <- list.files()
+rm(dataset)
+for (file in file_list){
+  
+  # if the merged dataset doesn't exist, create it
+  if (!exists("dataset")){
+    dataset <- read.csv(file, header = T, stringsAsFactors = F )
+    
+    dataset1<- as.data.frame(dataset$PhoneNo)
+    dataset<- dataset1
+    rm(dataset1)
+    names(dataset)[names(dataset)=="dataset$PhoneNo"] <- "PhoneNo"
+  }
+  
+  # if the merged dataset does exist, append to it
+  if (exists("dataset")){
+    temp_dataset <- read.csv(file, header = T, stringsAsFactors = F )
+    
+    temp_dataset1<- as.data.frame(temp_dataset$PhoneNo)
+    temp_dataset<-temp_dataset1
+    names(temp_dataset)[names(temp_dataset)=="temp_dataset$PhoneNo"] <- "PhoneNo"
+    dataset<-rbind(dataset, temp_dataset)
+    rm(temp_dataset,temp_dataset1)
+    
+    
+  }
+  
+  
+}
+require(sqldf)
+## Broadcast entries till date
+dataset$PhoneNo<- as.character(dataset$PhoneNo)
+NTXEntries <- sqldf("select PhoneNo, count(PhoneNo) as NTXEntries from dataset group by PhoneNo")
+
+TXEntries<- merge(Entries, NTXEntries, by.x= "PhoneNo", by.y = "PhoneNo", all.x = T, all.y = F)
+
+## Computing the number of Non-TX and TX ENtries made by a phone number
+TXEntries$NTXEntries<- ifelse(is.na(TXEntries$NTXEntries),0,TXEntries$NTXEntries)
+TXEntries$TXEntries<-  ifelse(TXEntries$Entries > TXEntries$NTXEntries, (TXEntries$Entries - TXEntries$NTXEntries), 0)
+
+## Add the recalculated Average TX Entries 
+## Every time RFT is computed, it is current till that date, however between 2 non-TX comps, phone numbers may respond to some TX comps and hence the need to re-calculate thevalues
+
+Data_for_scoring<- merge(Data_for_scoring, TXEntries, by.x = "PhoneNo", by.y = "PhoneNo", all.x=T, all.y = F)
+Data_for_scoring$`unique(Data_for_scoring$PhoneNo)`<- NULL
+
+Data_for_scoring$RFT_Class<- ifelse(Data_for_scoring$RFT_Score<14,"Good",ifelse(Data_for_scoring$RFT_Score>25,"Bad", "Average"))
+
+##Adding Comp details for the scoring set
+Data_for_scoring<- merge(Data_for_scoring, Comp_Details, by.x = "CompNumber.x", by.y = "CompNumber", all.x = T, all.y = F)
+
+## Split the data into 3 RFT Classes
+bad_scoring<- subset(Data_for_scoring, Data_for_scoring$RFT_Class=="Bad")
+good_scoring<- subset(Data_for_scoring, Data_for_scoring$RFT_Class=="Good")
+average_scoring<- subset(Data_for_scoring, Data_for_scoring$RFT_Class=="Average")
+
+## Fitting the LR models on the scoring data
+good_scoring$Response_Pr<- predict(mylogit_good, good_scoring,type = "response")
+average_scoring$Response_Pr<- predict(mylogit_average, average_scoring,type = "response")
+bad_scoring$Response_Pr<- predict(mylogit_bad, bad_scoring,type = "response")
+
+## Sorting and Ranking the phone numbers by descending value of predicted probability for the 3 sets individually
+good_scoring<- good_scoring[order(good_scoring$Response_Pr),]
+average_scoring<- average_scoring[order(average_scoring$Response_Pr),]
+bad_scoring<- bad_scoring[order(average_scoring$Response_Pr),]
+
+good_scoring$Rank<- row(good_scoring)
+bad_scoring$Rank<- row(bad_scoring)
+average_scoring$Rank<- row(average_scoring)
+
+## Creating the final scored dataset
+
+Scored_data<- rbind(good_scoring, average_scoring, bad_scoring)
+write.csv(Scored_data,file= "C:/Users/Arindam/Desktop/AC_0351_Campaigns/Scoring Set/Scored MP Data.csv", row.names = F)
