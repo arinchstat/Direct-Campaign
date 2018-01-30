@@ -1,0 +1,52 @@
+##Code to run the logistic regression models for 3 RFT Class
+
+## Read the base file for Logistic Regression
+Data_for_logistic <- read.csv(file= "C:/Users/Arindam/Desktop/Capability Lab/Supporting/RFT_Scores.csv", header = T, sep=",", stringsAsFactors = F)
+rm(Raw_RFT)
+
+## Read the competition attribute data and attach the same to all the records  
+Comp_Data <- read_csv("C:/Users/Arindam/Desktop/Capability Lab/Supporting/Comp data for NTX.csv")
+Data_for_logistic<- merge(Data_for_logistic, Comp_Data, by.x = "CompNumber.x", by.y = "CompNumber", all.x = T, all.y = F)
+
+## Converting the numeric/character data to factor
+Data_for_logistic$Recency_G <- factor(Data_for_logistic$Recencygrp)
+Data_for_logistic$PushesTd_G <- factor(Data_for_logistic$PushesTdgrp)
+Data_for_logistic$Tenure_G <- factor(Data_for_logistic$Tenuregrp)
+Data_for_logistic$EntriesTd_G <- factor(Data_for_logistic$EntriesTdgrp)
+Data_for_logistic$Reminder1_time<- factor(Data_for_logistic$Reminder1_time)
+Data_for_logistic$Reminder2_time<- as.factor(Data_for_logistic$Reminder2_time)
+Data_for_logistic$Duration<- as.factor(Data_for_logistic$Duration)
+
+## The logistic response model
+bad<- subset(Data_for_logistic, Data_for_logistic$RFT_Class=="Bad")
+good<- subset(Data_for_logistic, Data_for_logistic$RFT_Class=="Good")
+average<- subset(Data_for_logistic, Data_for_logistic$RFT_Class=="Average")
+
+## Bad
+mylogit_bad <- glm(Response ~ Duration + Reminders + Consolations + Prizevalue  + Recency_G + 
+                     PushesTd_G + Tenure_G + EntriesTd_G + Reminder1_time + Reminder2_time , data = bad, family = "binomial",control = list(maxit = 50))
+
+## Good
+mylogit_good <- glm(Response ~ Duration + Reminders + Consolations + Prizevalue  + Recency_G + 
+                      PushesTd_G + Tenure_G + EntriesTd_G + Reminder1_time + Reminder2_time, data = good, family = "binomial",control = list(maxit = 50))
+
+##Average
+
+mylogit_average <- glm(Response ~ Duration + Reminders + Consolations + Prizevalue  + Recency_G + 
+                         PushesTd_G + Tenure_G + EntriesTd_G + Reminder1_time + Reminder2_time, data = average, family = "binomial",control = list(maxit = 50))
+
+## Testing the model in sample
+good$Response_Pr<- predict(mylogit_good, good,type = "response")
+average$Response_Pr<- predict(mylogit_average, average,type = "response")
+bad$Response_Pr<- predict(mylogit_bad, bad,type = "response")
+
+
+
+
+
+
+
+
+
+
+
