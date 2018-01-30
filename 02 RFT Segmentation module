@@ -1,0 +1,114 @@
+## RFT Segmentation Module 
+library(data.tables)
+library(tidyr)
+library(lubridate)
+library(sqldf)
+## Read the master inbound (processed) file
+Inbound<- read.csv(file= "C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/Pooled_Inbound.csv", header = T, sep = ",", stringsAsFactors = F)
+
+## Create Numeric Compnumber
+Inbound$CompNum_nu<-as.numeric(gsub("Comp_Gr2_","",Inbound$CompNumber))
+
+## Creating a functional loop to calculate the RFT elements by comps
+Pooledinbound<- Inbound[order(Inbound$CompNum_nu, Inbound$Date),]
+rm(Inbound)
+Pooledinbound<- data.table(Pooledinbound)
+
+## Loop to calculate dynamic RFT starts
+
+Raw_RFT <- data.table(PhoneNo=character(),
+                           Frequency=integer(),
+                           Recency=numeric(), 
+                           Tenure=numeric(),
+                           CompNumber=character(),
+                           stringsAsFactors=FALSE)
+for(i in 1:max(Pooledinbound$CompNum_nu)) {
+
+  dataset<- Pooledinbound[CompNum_nu<=i,]
+  Rec_Ten <- dataset[, .(First_date=min(Date), Last_date=max(Date), Frequency= .N), by=.(PhoneNo)]
+  Rec_Ten$First_date<- as.Date(Rec_Ten$First_date)
+  Rec_Ten$Last_date<- as.Date(Rec_Ten$Last_date)
+  Rec_Ten$Recency<- as.numeric(max(as.Date(dataset$Date)) - Rec_Ten$Last_date)
+  Rec_Ten$Tenure<- as.numeric(max(as.Date(dataset$Date))- Rec_Ten$First_date)
+  Rec_Ten$CompNumber <- paste("Comp_Gr2_",i, collapse = NULL)
+  Rec_Ten$CompNumber<- gsub(" ","",Rec_Ten$CompNumber)
+  Rec_Ten<- Rec_Ten[,c(-2,-3)]
+  Raw_RFT<- rbind(Raw_RFT,Rec_Ten)
+  rm(Rec_Ten)
+}
+
+## Raw RFT without the ranks has been created and the code below writes it back to a folder location
+write.csv(Raw_RFT, file= "C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/Raw_RFT.csv", row.names = F)
+
+## Processing the marketing push files and finally ranking the Raw RFT values to generate RFT Scores and classification in Good, Average Bad
+
+## Read the master Marketing push file
+Appended_MP<- read.csv(file= "C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/Appended_MP.csv", header = T, sep = ",", stringsAsFactors = F)
+Appended_MP$CompNum_nu<- as.numeric(gsub("Comp_Gr2_","",Appended_MP$CompNumber))
+Appended_MP<- data.table(Appended_MP)
+
+##Computing the number of pushes by comps
+PushesTD_All <- data.table(PhoneNo=character(),
+                           Pushes_Td=integer(),
+                           CompNumber=character(), 
+                           stringsAsFactors=FALSE)
+
+for (i in 1:max(Appended_MP$CompNum_nu)){
+  
+  dataset<- Appended_MP[CompNum_nu<=i,]
+  PushesTD<- dataset[, .(Pushes_Td = .N), by=.(PhoneNo)]
+  PushesTD$CompNumber<- gsub(" ","",paste("Comp_Gr2_", i))
+  PushesTD_All <- rbind(PushesTD_All, PushesTD)
+  rm(dataset,PushesTD)
+  
+}
+
+## Pushes by comps
+Pushes_dist <- sqldf("select CompNumber, count(PhoneNo) as Number_of_Target from PushesTD_All group by CompNumber")
+PushesTD_All$Key <- paste(PushesTD_All$PhoneNo, PushesTD_All$CompNumber, sep="/", collapse = NULL)
+Appended_MP$Key<- paste(Appended_MP$PhoneNo, Appended_MP$CompNumber, sep= "/", collapse= NULL)
+Appended_MP<- merge(Appended_MP, PushesTD_All, by.x = "Key", by.y = "Key", all.x = T, all.y = F)
+Appended_MP<- Appended_MP[,c(-4,-5,-7)]
+rm(PushesTD_All)
+names(Appended_MP)[names(Appended_MP)=="PhoneNo.x"] <- "PhoneNo" 
+names(Appended_MP)[names(Appended_MP)=="CompNumber.x"] <- "CompNumber" 
+write.csv(Appended_MP, file= "C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/Pooled_MP.csv", row.names = F)
+
+## Final RFT File
+
+Raw_RFT$Key<- paste(Raw_RFT$PhoneNo, Raw_RFT$CompNumber, sep= "/", collapse= NULL)
+Raw_RFT<- merge(Appended_MP, Raw_RFT,by.x = "Key", by.y = "Key", all.x = T, all.y = F)
+Raw_RFT$Frequency<- ifelse(is.na(Raw_RFT$Frequency),0,Raw_RFT$Frequency)
+Raw_RFT<- subset(Raw_RFT,Raw_RFT$Frequency>0)
+Responselist<- as.data.frame(unique(Pooledinbound$Key))
+Responselist$Response<- 1
+names(Responselist)[names(Responselist)=="unique(Pooledinbound$Key)"] <- "Key" 
+Raw_RFT$Key<- as.character(Raw_RFT$Key)
+Raw_RFT<- merge(Raw_RFT,Responselist, by.x = "Key", by.y = "Key", all.x = T, all.y = F)
+Raw_RFT$Response<- ifelse(is.na(Raw_RFT$Response),0,1)
+rm(Responselist)
+
+
+## Coding for RFT variables
+Raw_RFT$Tenuregrp<- ifelse(Raw_RFT$Tenure<=33.91,1, ifelse(Raw_RFT$Tenure<=34.96,2,ifelse(Raw_RFT$Tenure<=55.98,3,ifelse(Raw_RFT$Tenure<=68.56,4, ifelse(Raw_RFT$Tenure<=87.21,5,ifelse(Raw_RFT$Tenure<=90.95,6, ifelse(Raw_RFT$Tenure<=118.92,7,ifelse(Raw_RFT$Tenure<=150.23,8,ifelse(Raw_RFT$Tenure<=161.97,9, ifelse(Raw_RFT$Tenure<=198.0801,10,ifelse(Raw_RFT$Tenure<=223.03,11,ifelse(Raw_RFT$Tenure<=257.95,12,ifelse(Raw_RFT$Tenure<=285.9,13,ifelse(Raw_RFT$Tenure<=320.9701,14,15))))))))))))) )
+Raw_RFT$EntriesTdgrp<- ifelse(Raw_RFT$Frequency<=1,1,ifelse(Raw_RFT$Frequency<=2,2,ifelse(Raw_RFT$Frequency<=3,3,ifelse(Raw_RFT$Frequency<=4,4,ifelse(Raw_RFT$Frequency<=6,5,6)))))
+Raw_RFT$Recencygrp<- ifelse(Raw_RFT$Recency<=21.81,1,ifelse(Raw_RFT$Recency<=27.93,2,ifelse(Raw_RFT$Recency<=33.99,3,ifelse(Raw_RFT$Recency<=35.03,4,ifelse(Raw_RFT$Recency<=35.11,5,ifelse(Raw_RFT$Recency<=45.79,6,ifelse(Raw_RFT$Recency<=47.97,7,ifelse(Raw_RFT$Recency<=60,8,9))))))))
+Raw_RFT$PushesTdgrp<- ifelse(Raw_RFT$Pushes_Td<=2,1,ifelse(Raw_RFT$Pushes_Td<=6,2,ifelse(Raw_RFT$Pushes_Td<=7,3,ifelse(Raw_RFT$Pushes_Td<=9,4,5))))
+
+## Reading the ranking metric for Recency, frequency and Tenure (from external source, generated from a SAS output)
+EntriesTd_ranks <- read_csv("C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/EntriesTd_ranks.csv")
+Recency_rank <- read_csv("C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/Recency_rank.csv")
+Tenure_rank <- read_csv("C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/Tenure_rank.csv")
+
+## Attaching the ranks 
+Raw_RFT<- merge(Raw_RFT,EntriesTd_ranks,by.x = "EntriesTdgrp", by.y = "EntriesTdgrp", all.x = T, all.y = F)
+Raw_RFT<- merge(Raw_RFT,Recency_rank,by.x = "Recencygrp", by.y = "Recencygrp", all.x = T, all.y = F)
+Raw_RFT<- merge(Raw_RFT,Tenure_rank,by.x = "Tenuregrp", by.y = "Tenuregrp", all.x = T, all.y = F)
+
+## Computing the final RFT Scores and classifying them into Good, Average and Bad
+Raw_RFT$RFT_Score<- Raw_RFT$`Recency Ranks` + (2* Raw_RFT$EntriesTdgrp_Ranks) + Raw_RFT$`Tenure Ranks`
+Raw_RFT$RFT_Class<- ifelse(Raw_RFT$RFT_Score<14,"Good",ifelse(Raw_RFT$RFT_Score>25,"Bad", "Average"))
+
+write.csv(Raw_RFT,file= "C:/Users/Arindam/Desktop/AC_0351_Campaigns/Supporting/RFT_Scores.csv", row.names = F)
+
+
